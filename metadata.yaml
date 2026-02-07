@@ -1,0 +1,16 @@
+name: astrbot_plugin_memory_reboot
+display_name: Memory Reboot - 记忆重现
+desc: 当群聊中有人重复发送旧的新闻/话题时，自动引用回复提醒该用户
+help: |
+  Memory Reboot - 记忆重现插件
+
+  当同一个话题被第X个及以后的人发送时，自动引用回复提醒他这是"旧闻"
+
+  使用文本匹配(embedding)和图片哈希匹配两种机制进行相似度检测
+  可选使用LLM判断区分复读/接龙和真正的旧闻（可关闭以节省token）
+  自动过滤其他插件的命令，避免误判
+  管理命令仅限管理员使用
+  优化正则匹配策略为全词匹配，支持精准关键词过滤
+version: v3.5
+author: s11IM、idiotsj
+repo: https://github.com/s11IM/astrbot_plugin_memory_reboot

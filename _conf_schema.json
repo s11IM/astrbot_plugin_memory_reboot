@@ -1,0 +1,96 @@
+{
+  "blocked_groups": {
+    "description": "黑名单群组列表",
+    "type": "list",
+    "items": {"type": "string"},
+    "hint": "在此列表中的群不会启用旧闻提醒，其他群默认启用",
+    "default": []
+  },
+  "embedding_provider_id": {
+    "description": "嵌入模型提供商ID",
+    "type": "string",
+    "hint": "填写AstrBot中已配置的嵌入模型提供商ID（在AstrBot配置页面查看）。用于生成文本向量，计算消息相似度。",
+    "default": ""
+  },
+  "vision_provider_id": {
+    "description": "图像识别模型提供商【需要视觉能力】",
+    "type": "string",
+    "hint": "⚠️ 需要具备视觉能力的模型！用于识别图片类型（emoji跳过，meme/content记录）",
+    "default": "",
+    "_special": "select_provider"
+  },
+  "judge_provider_id": {
+    "description": "情景判断模型提供商",
+    "type": "string",
+    "hint": "用于判断是否需要发送提醒（区分复读/旧闻），只需文本能力即可。需要启用「启用LLM判断」开关才会生效。",
+    "default": "",
+    "_special": "select_provider"
+  },
+  "enable_llm_judge": {
+    "description": "启用LLM判断",
+    "type": "bool",
+    "hint": "启用后将使用LLM对匹配到的消息进行二次判断，区分复读/接龙/正常讨论与旧闻重发。关闭后匹配到相似内容即直接触发提醒（更激进但省token）。",
+    "default": true
+  },
+  "similarity_threshold": {
+    "description": "文本相似度阈值",
+    "type": "float",
+    "hint": "只有文本相似度超过此阈值才认为是同一内容（建议0.95，越高越严格）",
+    "default": 0.95
+  },
+  "image_hash_threshold": {
+    "description": "图片哈希相似度阈值",
+    "type": "float",
+    "hint": "图片哈希相似度阈值，用于检测相似图片（dHash 256位，建议0.90，与文本相似度是或门关系）",
+    "default": 0.90
+  },
+  "min_unique_senders": {
+    "description": "最少不同用户数",
+    "type": "int",
+    "hint": "需要至少N个不同用户发送相似内容才触发提醒（默认3：第1人=原始，第2人=可能引用，第3人=确认重复）",
+    "default": 3
+  },
+  "cooldown_seconds": {
+    "description": "冷却时间(秒)",
+    "type": "int",
+    "hint": "同一内容在此时间内重复出现不会触发提醒（默认3600秒/60分钟）",
+    "default": 3600
+  },
+  "data_retention_days": {
+    "description": "数据保留天数",
+    "type": "int",
+    "hint": "消息记录保留多少天，超过此天数的记录会自动清理（默认7天）",
+    "default": 7
+  },
+  "vision_prompt": {
+    "description": "图片识别提示词",
+    "type": "text",
+    "hint": "判断图片是否为纯表情包(跳过)或内容图(记录)，返回JSON格式。留空则使用内置默认提示词。",
+    "default": ""
+  },
+  "judge_prompt": {
+    "description": "判断提示词",
+    "type": "text",
+    "hint": "用于判断是否提醒的提示词。可用变量：{matched_time}, {matched_time_ago}, {matched_sender}, {matched_content}, {history_str}, {current_str}, {sender_name}, {content}, {min_senders}, {unique_count}。留空则使用内置默认提示词。",
+    "default": ""
+  },
+  "ignore_regex": {
+    "description": "忽略内容的正则表达式",
+    "type": "list",
+    "items": {"type": "string"},
+    "hint": "匹配这些正则的消息将被直接忽略，不记录也不提醒。例如：[\"^今日运势$\", \"^签到$\", \"^/.*\"]",
+    "default": []
+  },
+  "min_text_length": {
+    "description": "最小文本长度",
+    "type": "int",
+    "hint": "纯文本消息长度小于此值将被忽略（含图片的消息不受此限制）。建议设置为2以过滤无效短句。设置为0则不限制。",
+    "default": 2
+  },
+  "auto_filter_commands": {
+    "description": "自动过滤插件命令",
+    "type": "bool",
+    "hint": "启用后将自动检测并过滤其他插件的命令（如 /签到、帮助、天气 等），避免将命令误判为重复内容。需要AstrBot版本支持。",
+    "default": true
+  }
+}
