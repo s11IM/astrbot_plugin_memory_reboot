@@ -71,7 +71,7 @@ DEFAULT_SIMILARITY_THRESHOLD = 0.95       # 文本相似度阈值
 DEFAULT_IMAGE_HASH_THRESHOLD = 0.90       # 图片哈希相似度阈值（dHash 256位）
 DEFAULT_MIN_UNIQUE_SENDERS = 3            # 最少不同发送者数量
 DEFAULT_COOLDOWN_SECONDS = 3600           # 冷却时间（秒）
-DEFAULT_MIN_TEXT_LENGTH = 2               # 最小文本长度
+DEFAULT_MIN_TEXT_LENGTH = 3               # 最小文本长度
 REMINDER_IMAGE_FILENAME = "1000101866.jpg" # 提醒图片文件名
 
 
@@ -1523,3 +1523,4 @@ class MemoryRebootPlugin(Star):
                 logger.error(f"[Memory Reboot] 清空数据失败: {e}")
         else:
             logger.info(f"[Memory Reboot] 记忆擦除完成 - 群{group_id}暂无数据")
+
