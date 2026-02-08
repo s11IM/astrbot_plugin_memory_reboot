@@ -41,7 +41,7 @@ except ImportError:
 from astrbot.api import logger
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.event.filter import EventMessageType
-from astrbot.api.star import Context, Star
+from astrbot.api.star import Context, Star, StarTools
 from astrbot.api.message_components import Plain, Image, Reply
 
 # ----- 1.4 插件命令过滤相关 -----
@@ -256,27 +256,46 @@ class MemoryRebootPlugin(Star):
         设置数据存储目录，并处理旧版本数据迁移
         
         迁移逻辑：
-        - 旧目录名: data/old_news_reminder (v0.x版本使用)
-        - 新目录名: data/memory_reboot (v1.0+版本使用)
+        - 路径1 (v0.x): data/old_news_reminder
+        - 路径2 (v1.0+ 硬编码): data/memory_reboot (cwd下)
+        - 路径3 (v1.2+ 标准): StarTools.get_data_dir()
         
-        如果检测到旧目录存在且新目录不存在，自动将旧目录重命名为新目录。
+        将旧路径数据迁移到标准路径。
         """
-        old_data_dir = os.path.join(os.getcwd(), "data", "old_news_reminder")
-        self.data_dir = os.path.join(os.getcwd(), "data", "memory_reboot")
+        # 1. 获取标准路径 (pathlib.Path)
+        standard_path = StarTools.get_data_dir()
         
-        # 执行数据迁移
-        if os.path.exists(old_data_dir) and not os.path.exists(self.data_dir):
-            try:
-                os.rename(old_data_dir, self.data_dir)
-                logger.info(
-                    f"[Memory Reboot] 检测到旧数据目录，已自动迁移至: {self.data_dir}"
-                )
-            except Exception as e:
-                logger.error(f"[Memory Reboot] 数据迁移失败: {e}")
-                # 迁移失败则继续使用旧目录，避免数据丢失
-                self.data_dir = old_data_dir
+        # 2. 定义旧路径
+        cwd = os.getcwd()
+        legacy_v0 = os.path.join(cwd, "data", "old_news_reminder")
+        legacy_v1 = os.path.join(cwd, "data", "memory_reboot")
         
-        # 确保数据目录存在
+        # 3. 检查是否需要迁移
+        # 如果标准目录不存在，且存在旧数据，则尝试迁移
+        if not standard_path.exists():
+            target_source = None
+            if os.path.exists(legacy_v1):
+                target_source = legacy_v1
+                logger.info(f"[Memory Reboot] 检测到 v1.0 旧数据目录: {legacy_v1}")
+            elif os.path.exists(legacy_v0):
+                target_source = legacy_v0
+                logger.info(f"[Memory Reboot] 检测到 v0.x 旧数据目录: {legacy_v0}")
+            
+            if target_source:
+                try:
+                    # 确保标准路径的父目录存在
+                    standard_path.parent.mkdir(parents=True, exist_ok=True)
+                    # 移动目录
+                    shutil.move(target_source, str(standard_path))
+                    logger.info(f"[Memory Reboot] 数据成功迁移至标准路径: {standard_path}")
+                except Exception as e:
+                    logger.error(f"[Memory Reboot] 数据迁移失败: {e}")
+                    # 迁移失败，回退使用旧路径以防数据丢失
+                    self.data_dir = target_source
+                    return
+
+        # 4. 设置最终路径并确保存在
+        self.data_dir = str(standard_path)
         os.makedirs(self.data_dir, exist_ok=True)
     
     # ==========================================================================
