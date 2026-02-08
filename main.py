@@ -250,6 +250,13 @@ class MemoryRebootPlugin(Star):
         self._cache = {}
         
         logger.info("[Memory Reboot] 插件初始化完成（含内存缓存优化）")
+
+    async def terminate(self):
+        """插件卸载时调用"""
+        for group_id in list(self._cache.keys()):
+            self._flush_cache(group_id)
+        self._cache.clear()
+        logger.info("[Memory Reboot] 资源已清理")
     
     def _setup_data_directory(self):
         """
