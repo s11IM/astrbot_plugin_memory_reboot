@@ -85,7 +85,7 @@
     "description": "最小文本长度",
     "type": "int",
     "hint": "纯文本消息长度小于此值将被忽略（含图片的消息不受此限制）。建议设置为2以过滤无效短句。设置为0则不限制。",
-    "default": 2
+    "default": 3
   },
   "auto_filter_commands": {
     "description": "自动过滤插件命令",
@@ -93,4 +93,5 @@
     "hint": "启用后将自动检测并过滤其他插件的命令（如 /签到、帮助、天气 等），避免将命令误判为重复内容。需要AstrBot版本支持。",
     "default": true
   }
+
 }
