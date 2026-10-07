@@ -92,6 +92,11 @@
     "type": "bool",
     "hint": "启用后将自动检测并过滤其他插件的命令（如 /签到、帮助、天气 等），避免将命令误判为重复内容。需要AstrBot版本支持。",
     "default": true
+  },
+  "filter_by_message_type": {
+    "description": "基于消息类型自动过滤表情包",
+    "type": "bool",
+    "hint": "默认开启。直接通过QQ消息类型与元数据（如[动画表情]、系统表情、subType=1表情包等）快速识别并跳过表情包，无需调用视觉大模型，节省Token和时间。",
+    "default": true
   }
-
 }

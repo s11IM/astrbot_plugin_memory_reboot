@@ -12,7 +12,7 @@ import hashlib
 import datetime
 import shutil
 import gzip
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Any
 
 # ----- 1.2 第三方库（带依赖检查）-----
 _missing_deps = []  # 记录缺失的依赖
@@ -72,7 +72,9 @@ DEFAULT_IMAGE_HASH_THRESHOLD = 0.90       # 图片哈希相似度阈值（dHash 
 DEFAULT_MIN_UNIQUE_SENDERS = 3            # 最少不同发送者数量
 DEFAULT_COOLDOWN_SECONDS = 3600           # 冷却时间（秒）
 DEFAULT_MIN_TEXT_LENGTH = 2               # 最小文本长度
+DEFAULT_FILTER_BY_MESSAGE_TYPE = True     # 默认基于消息类型自动过滤表情包
 REMINDER_IMAGE_FILENAME = "1000101866.jpg" # 提醒图片文件名
+STICKER_SUMMARIES = {"[动画表情]", "[商城表情]", "[表情]", "[贴纸表情]", "[超级表情]", "[大表情]"}
 
 
 # ==============================================================================
@@ -1204,16 +1206,95 @@ class MemoryRebootPlugin(Star):
             chain.append(Plain("这个话题之前已经有人讨论过了哦~"))
         yield event.chain_result(chain)
     
+    def _get_clean_text(self, text: str) -> str:
+        """移除完整CQ码；仅在剩余内容全是表情占位符时清空文本。"""
+        if not text:
+            return ""
+        cleaned = re.sub(r"\[CQ:[a-zA-Z0-9_]+(?:,[^\[\]]*)?\]", "", text).strip()
+        remaining = cleaned
+        for summary in STICKER_SUMMARIES:
+            remaining = remaining.replace(summary, "")
+        # 正文中的“[表情]是什么意思”等字面文本应原样保留。
+        return cleaned if remaining.strip() else ""
+
+    def _get_raw_image_data(self, event: AstrMessageEvent) -> List[Dict]:
+        """统一读取 OneBot 消息数组或 CQ 字符串中的图片元数据。"""
+        raw_msg = getattr(getattr(event, "message_obj", None), "raw_message", None)
+        if raw_msg is None:
+            raw_msg = getattr(event, "raw_message", None)
+        if isinstance(raw_msg, dict):
+            message = raw_msg.get("message")
+            raw_msg = message if isinstance(message, (list, str)) else raw_msg.get("raw_message")
+        if isinstance(raw_msg, list):
+            return [
+                seg["data"] for seg in raw_msg
+                if isinstance(seg, dict) and seg.get("type") == "image"
+                and isinstance(seg.get("data"), dict)
+            ]
+        images = []
+        if isinstance(raw_msg, str):
+            for match in re.finditer(r"\[CQ:image,([^\[\]]*)\]", raw_msg, re.I):
+                data = {}
+                for field in match.group(1).split(","):
+                    key, separator, value = field.partition("=")
+                    if separator:
+                        # 先切分再反转义，避免文件名或 URL 中的逗号变成字段分隔符。
+                        for encoded, decoded in (("&#91;", "["), ("&#93;", "]"), ("&#44;", ","), ("&amp;", "&")):
+                            value = value.replace(encoded, decoded)
+                        data[key] = value
+                images.append(data)
+        return images
+
+    def _has_sticker_metadata(self, data: Dict) -> bool:
+        """只匹配元数据字段的完整值，不扫描 URL 或正文。"""
+        summary = str(data.get("summary") or "").strip()
+        sub_type = data.get("sub_type")
+        if sub_type is None:
+            sub_type = data.get("subType")
+        # 只依赖已知的表情类型；未知扩展值继续走视觉识别，避免误删内容图。
+        return summary in STICKER_SUMMARIES or str(sub_type) == "1"
+
+    def _is_image_component_sticker(self, comp: Any, raw_images: List[Dict],
+                                    image_index: int, total_images: int) -> bool:
+        """只使用当前图片的元数据，无法可靠匹配时留给视觉模型判断。"""
+        metadata = {key: getattr(comp, key, None) for key in ("summary", "sub_type", "subType")}
+        if self._has_sticker_metadata(metadata):
+            return True
+
+        identifiers = {str(value) for value in (getattr(comp, "file", None), getattr(comp, "url", None)) if value}
+        matches = [
+            index for index, data in enumerate(raw_images)
+            if identifiers.intersection(str(data[key]) for key in ("file", "url") if data.get(key))
+        ]
+        if len(matches) == 1:
+            return self._has_sticker_metadata(raw_images[matches[0]])
+        if len(matches) > 1 and len(raw_images) == total_images and image_index in matches:
+            # 同一文件可能在一条消息里分别作为表情和普通图片发送。
+            return self._has_sticker_metadata(raw_images[image_index])
+        if not matches and total_images == len(raw_images) == 1:
+            # 适配器可能把唯一一张图片的远端标识改成本地缓存路径。
+            return self._has_sticker_metadata(raw_images[0])
+        return False
+
     async def _extract_content(self, event: AstrMessageEvent) -> Optional[Tuple[str, Optional[str]]]:
         """提取消息内容，返回(文本内容, 图片URL)"""
-        text = event.message_str.strip() if event.message_str else ""
+        filter_by_type = self.config.get("filter_by_message_type", DEFAULT_FILTER_BY_MESSAGE_TYPE)
+
+        raw_text = event.message_str.strip() if event.message_str else ""
+        text = self._get_clean_text(raw_text) if filter_by_type else raw_text
+
+        components = getattr(getattr(event, "message_obj", None), "message", None) or []
+        images = [comp for comp in components if isinstance(comp, Image)]
+        raw_images = self._get_raw_image_data(event) if filter_by_type else []
+        total_images = len(images)
         urls = []
-        if hasattr(event, "message_obj") and event.message_obj:
-            for comp in event.message_obj.message:
-                if isinstance(comp, Image):
-                    url = getattr(comp, "url", None) or getattr(comp, "file", None)
-                    if url:
-                        urls.append(url)
+        for image_index, comp in enumerate(images):
+            if filter_by_type and self._is_image_component_sticker(comp, raw_images, image_index, total_images):
+                logger.info("[Memory Reboot] 根据消息类型识别图片为表情包，已跳过")
+                continue
+            url = getattr(comp, "url", None) or getattr(comp, "file", None)
+            if url:
+                urls.append(url)
         
         if urls:
             for url in urls:
